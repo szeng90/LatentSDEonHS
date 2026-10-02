@@ -373,20 +373,25 @@ class Chebyshev(nn.Module):
         r"""
         Args:
             out_encoder (Tensor): tensor of shape "(N: batchsize, d: \# of channels)"
-            time_steps (Tensor): tensor of shape "(L: \# of time steps)"
+            time_steps (Tensor): tensor of shape "(L: number of time steps)"
+                for a shared grid or "(N: batch size, L: number of time
+                steps)" for per-sample grids.
 
         Returns:
             (Tensor): tensor of shape "(N: batchsize, L: \# of time steps,
                                  d: \# of channels)"
         """
         time_steps = self.interval_transform(time_steps)
-        monomials = torch.cos(torch.outer(torch.arccos(time_steps), self.degrees))
+        monomials = torch.cos(
+            torch.arccos(time_steps).unsqueeze(-1) * self.degrees
+        )
+
         coefficients = self.map(out_encoder).view(
             out_encoder.shape[0], self.out_dim, self.degree
         )
-        polynomial = F.linear(coefficients, monomials)
-        polynomial = polynomial.permute(0, 2, 1)
-        return polynomial
+        coefficients = coefficients.transpose(-1, -2)
+
+        return torch.matmul(monomials, coefficients)
 
 
 class RotatingMNISTRecogNetwork(nn.Module):
