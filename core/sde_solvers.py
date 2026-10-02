@@ -10,14 +10,14 @@ def geometric_euler(z0, drift, cov, dt, basis):
     else:
         noise = torch.einsum('btij, ...btj -> ...bti', cov, noise)
     
-    noise = torch.einsum('...td, t -> ...td', noise, dt.sqrt())
-    drift = torch.einsum('...td, t -> ...td', drift, dt)
+    noise = noise * dt.sqrt().unsqueeze(-1)
+    drift = drift * dt.unsqueeze(-1)
     omegas = drift + noise
     omegas = vec_to_matrix(omegas, basis)
 
     Qs = torch.matrix_exp(omegas.contiguous())
     zi = [z0]
-    for t_idx in range(len(dt)):
+    for t_idx in range(dt.shape[-1]):
         Qt = Qs[...,t_idx,:,:]
         Qtz = torch.einsum('...ij, ...j -> ...i', Qt, zi[-1])
         zi.append(Qtz)
