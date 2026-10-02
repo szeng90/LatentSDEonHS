@@ -1,6 +1,7 @@
 *.ipynb_checkpoints
 core/power_spherical
 Debug.ipynb
-*__pycache__*
 data_dir
 .vscode/
+*.egg-info/
+__pycache__/
