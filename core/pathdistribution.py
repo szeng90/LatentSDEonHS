@@ -31,7 +31,7 @@ class PathDistribution(Distribution):
         sigma (Tensor):
             scales noise in path
         t (Tensor):
-            Tensor of time points
+            A shared time grid of shape (T,) or per-batch grids of shape (B,T).
         kl_samples (int):
             Number of samples used to compute KL divergence.
             Defaults to 1.
@@ -62,7 +62,7 @@ class PathDistribution(Distribution):
         self.device = sigma.device
 
         batch_shape = p0.sample().shape[0:1]
-        event_shape = t.shape + p0.sample().shape[1:2]
+        event_shape = t.shape[-1:] + p0.sample().shape[1:2]
         super(PathDistribution, self).__init__(batch_shape = batch_shape, event_shape=event_shape, validate_args=validate_args)
 
         self.p0 = p0
@@ -80,7 +80,7 @@ class PathDistribution(Distribution):
     def t(self, val: Tensor) -> None:
         self._t = val
         self.dt = torch.diff(self.t)
-        self._Kt = self._K(self.t[:-1])
+        self._Kt = self._K(self.t[..., :-1])
 
     @property
     def K(self) -> Callable[[Tensor], Tensor]:
@@ -88,11 +88,11 @@ class PathDistribution(Distribution):
     @K.setter
     def K(self, val: Callable[[Tensor], Tensor]):
         self._K = val
-        self._Kt = self._K(self.t[:-1])
+        self._Kt = self._K(self.t[..., :-1])
 
     @property
     def steps(self) -> int:
-        return len(self.t)
+        return self.t.shape[-1]
 
     @property
     def Kt(self) -> Tensor:
@@ -141,7 +141,7 @@ def _kl_pathdistributions(p: PathDistribution, q:PathDistribution) -> Tuple[Tens
     proj_drift = torch.einsum('...btij, ...btj -> ...bti ',delta_drift,zi[...,:-1,:])
     kl_path = torch.einsum('...i, ...ij, ...j -> ...', proj_drift, diff_pinv, proj_drift)
 
-    kl_path = torch.einsum('...nt,t -> ...n', kl_path, p.dt) # average over time
+    kl_path = (kl_path * p.dt).sum(dim=-1) # integrate over time
     kl_path = kl_path.mean(dim=0) # average over samples
     return kl_path, kl0
 
@@ -159,7 +159,7 @@ class SOnPathDistribution(PathDistribution):
         sigma (Tensor):
             scales noise in path
         t (Tensor):
-            Tensor of time points
+            A shared time grid of shape (T,) or per-batch grids of shape (B,T).
         kl_samples (int)
             Number of samples used to compute KL divergence. Defaults to 1.
         validate_args (Bool):
@@ -221,8 +221,12 @@ class BrownianMotionOnSphere(SOnPathDistribution):
 
         p0 = HypersphericalUniform(dim, device=sigma.device, validate_args=validate_args)
         group_dim = int(dim*(dim-1)/2)
-        def K(tt: Tensor): 
-            return torch.zeros(len(tt), group_dim, device=sigma.device)
+        def K(tt: Tensor):
+            return torch.zeros(
+                (*tt.shape, group_dim),
+                device=tt.device,
+                dtype=tt.dtype,
+            )
         super().__init__(p0, K, sigma, t, validate_args, kl_samples, solver)
 
 
@@ -241,7 +245,7 @@ def _kl_pathdistributions_son(p:SOnPathDistribution, q: SOnPathDistribution) -> 
     projection = torch.einsum('ntij, ...ntj -> ...nti ',drift,zi[...,:-1,:])
     norm_squared = projection.square().sum(dim=(-1)) # sum over spatial dimensions
 
-    kl_path = torch.einsum('...nt,t -> ...n', norm_squared, p.dt) / p.sigma.square()  # average over time
+    kl_path = (norm_squared * p.dt).sum(dim=-1) / p.sigma.square()  # integrate over time
     kl_path = kl_path.mean(dim=0) # average over samples
     return kl_path, kl0
 
@@ -259,7 +263,7 @@ class GLnPathDistribution(PathDistribution):
             sigma (Tensor):
                 scales noise in path
             t (Tensor):
-                Tensor of time points
+                A shared time grid of shape (T,) or per-batch grids of shape (B,T).
             kl_samples (int)
                 Number of samples used to compute KL divergence. 
                 Defaults to 1.
@@ -302,6 +306,6 @@ def _kl_pathdistributions_gln(p: GLnPathDistribution, q: GLnPathDistribution) ->
     zi = p.zi if hasattr(p, 'zi') else p.rsample((p.kl_samples,))
     projection = torch.einsum('ntij, ...ntj -> ...nti ',drift,zi[...,:-1,:])
     norm_squared = projection.square().sum(dim=(-1)) # sum over spatial dimensions
-    kl_path = torch.einsum('...nt,t -> ...n', norm_squared, p.dt) / p.sigma.square()  # average over time
+    kl_path = (norm_squared * p.dt).sum(dim=-1) / p.sigma.square()  # integrate over time
     kl_path = kl_path.mean(dim=0) # average over samples
     return kl_path, kl0
