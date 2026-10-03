@@ -2,7 +2,10 @@ import unittest
 
 import torch
 
-from core.models import Chebyshev
+from core.models import (
+    Chebyshev,
+    default_SOnPathDistributionEncoder,
+)
 from core.sde_solvers import geometric_euler
 from core.pathdistribution import SOnPathDistribution
 from core.power_spherical import PowerSpherical
@@ -279,6 +282,53 @@ class TestSOnPathDistributionBatchedTime(unittest.TestCase):
         self.assertEqual(dist.Kt.shape, (2, 3, 3))
         self.assertEqual(sample.shape, (2, 4, 3))
 
+class TestSOnPathDistributionEncoderBatchedTime(unittest.TestCase):
+    def test_encoder_supports_different_time_ranges(self):
+        torch.manual_seed(0)
+
+        encoder = default_SOnPathDistributionEncoder(
+            h_dim=4,
+            z_dim=3,
+            n_deg=4,
+            learnable_prior=False,
+        )
+
+        h = torch.randn(2, 4, requires_grad=True)
+        t = torch.tensor([
+            [0.0, 0.1, 0.2, 0.4, 0.6],
+            [0.2, 0.4, 0.6, 0.8, 1.0],
+        ])
+
+        posterior, prior = encoder(h, t)
+        sample = posterior.rsample((3,))
+        kl_path, kl_initial = kl_divergence(posterior, prior)
+
+        self.assertEqual(posterior.batch_shape, torch.Size([2]))
+        self.assertEqual(posterior.event_shape, torch.Size([5, 3]))
+        self.assertEqual(posterior.Kt.shape, (2, 4, 3))
+        self.assertEqual(prior.Kt.shape, (2, 4, 3))
+        self.assertEqual(sample.shape, (3, 2, 5, 3))
+        self.assertEqual(kl_path.shape, (2,))
+        self.assertEqual(kl_initial.shape, (2,))
+
+        self.assertTrue(torch.isfinite(sample).all())
+        self.assertTrue(torch.isfinite(kl_path).all())
+        self.assertTrue(torch.isfinite(kl_initial).all())
+
+        loss = (
+            sample[..., 0].sum()
+            + kl_path.sum()
+            + kl_initial.sum()
+        )
+        loss.backward()
+
+        self.assertIsNotNone(h.grad)
+        self.assertTrue(torch.isfinite(h.grad).all())
+
+        self.assertIsNotNone(encoder._time_fn.map.weight.grad)
+        self.assertTrue(
+            torch.isfinite(encoder._time_fn.map.weight.grad).all()
+        )
 
 if __name__ == "__main__":
     unittest.main()
