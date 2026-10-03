@@ -26,7 +26,7 @@ from torch.distributions import (
     OneHotCategorical,
 )
 
-from core.power_spherical.distributions import PowerSpherical, HypersphericalUniform
+from power_spherical.distributions import PowerSpherical, HypersphericalUniform
 from core.pathdistribution import SOnPathDistribution, BrownianMotionOnSphere, PathDistribution
 from utils.misc import scatter_obs_and_msk
 

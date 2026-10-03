@@ -10,7 +10,7 @@ from torch.distributions import (
     register_kl, 
     kl_divergence, 
     Normal)
-from core.power_spherical.distributions import PowerSpherical, HypersphericalUniform
+from power_spherical.distributions import PowerSpherical, HypersphericalUniform
 from core.sde_solvers import geometric_euler
 from utils.misc import vec_to_matrix
 

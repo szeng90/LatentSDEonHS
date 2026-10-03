@@ -2,7 +2,7 @@ import torch
 import unittest
 
 from core.pathdistribution import SOnPathDistribution, GLnPathDistribution
-from core.power_spherical import PowerSpherical
+from power_spherical import PowerSpherical
 from utils.misc import vec_to_matrix
 
 

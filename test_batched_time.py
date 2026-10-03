@@ -8,7 +8,7 @@ from core.models import (
 )
 from core.sde_solvers import geometric_euler
 from core.pathdistribution import SOnPathDistribution
-from core.power_spherical import PowerSpherical
+from power_spherical import PowerSpherical
 from core.pathdistribution import (
     BrownianMotionOnSphere,
     SOnPathDistribution,

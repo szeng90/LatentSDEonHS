@@ -5,6 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "latent-sde-on-hs"
 version = "0.1.0"
+dependencies = [
+    "power_spherical @ git+https://github.com/nicola-decao/power_spherical.git@3d4619a9d6c01bc9b427533d386271a233e304cd",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]
